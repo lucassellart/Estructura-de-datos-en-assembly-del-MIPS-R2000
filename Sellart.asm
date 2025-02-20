@@ -1,13 +1,28 @@
-	.data
+############### TRABAJO PRACTICO MIPS LUCAS SELLART ###############
 
- # Punteros inicializados a NULL
+############### Estructura de datos en assembly del MIPS R2000 ####
 
- slist: 	.word 0	# Lista de bloques liberados
- cclist: 	.word 0	# Lista de categorias
- wclist: 	.word 0	# Categoria seleccionada
- schedv: 	.space 32	# Espacio para el vector de funciones del menú
+ .macro print_label (%label)
+ la $a0, %label	# DirecciÃ³n de texto (mensaje)
+ li $v0, 4
+ syscall
+ .end_macro
 
- menu: 	.ascii "Colecciones de objetos categorizados\n"
+ .macro print_error (%error)
+ print_label(error)		# Imprime "Error: "
+ li $a0, %error
+ li $v0, 1
+ syscall			# Imprime el nÃºmero del error
+ print_label(return)		# Imprime un salto de lÃ­nea
+ .end_macro
+ 
+ 	.data
+ slist:	.word 0	# Puntero a lista de memoria liberada
+ cclist: 	.word 0	# Puntero a lista de categorÃ­as
+ wclist: 	.word 0	# Puntero a lista actualmente seleccionada
+ schedv: 	.space 32	# Vector de funciones
+ objId: 	.word 0	# Variable que almacena el ID del objeto a crear
+ menu:	.ascii "Colecciones de objetos categorizados\n"
 	.ascii "====================================\n"
 	.ascii "1-Nueva categoria\n"
 	.ascii "2-Siguiente categoria\n"
@@ -19,584 +34,487 @@
 	.ascii "8-Borrar objeto de la categoria\n"
 	.ascii "0-Salir\n"
 	.asciiz "Ingrese la opcion deseada: "
- error: 	.asciiz "Error: "
- return: 	.asciiz "\n"
- catName: 	.asciiz "\nIngrese el nombre de una categoria: "
- selCat: 	.asciiz "\nSe ha seleccionado la categoria:"
- idObj: 	.asciiz "\nIngrese el ID del objeto a eliminar: "
- objName: 	.asciiz "\nIngrese el nombre de un objeto: "
- success: 	.asciiz "La operación se realizo con exito\n\n"
-
-
- error_702: .asciiz "Error 702: No hay objetos disponibles en esta categoría\n"
-
+	
+ dospuntos: .asciiz ": "
+ marca: ">"
+ ErrorNotFound: .asciiz "Not found\n"
+ Id: .asciiz "ID "
+ mensaje_listadoCats: .asciiz "Listado de categorias: \n"
+ mensaje_listadoObjs: .asciiz "Listado de objetos de la categoria: "
+ mensaje_categoriaNoVacia: .asciiz "La categoria tiene objetos, debes eliminarlos primero\n"
+ error:	.asciiz "Error: "
+ return:	.asciiz "\n"
+ catName:.asciiz "\nIngrese el nombre de una categoria: "
+ selCat:	.asciiz "\nSe ha seleccionado la categoria:"
+ idObj:	.asciiz "\nIngrese el ID del objeto a eliminar: "
+ objName:.asciiz "\nIngrese el nombre de un objeto: "
+ success:.asciiz "La operacion se realizo con exito\n\n"
+ 
  .text
- main:	la $t0, schedv		# Inicializar el vector del menú
-	la $t1, newcategory	
-	sw $t1, 0($t0)		# Opcion 1: Crear nueva categoria
-	la $t1, nextcategory
-	sw $t1, 4($t0)		# Opción 2: Siguiente categoría
-	la $t1, prevcategory	
-	sw $t1, 8($t0)		# Opcion 3: Anterior  categoria
-	la $t1, listcategories
-	sw $t1, 12($t0)		# Opcion 4: Listar categorias
-	la $t1, delcategory
-	sw $t1, 16($t0)		# Opcion 5: Eliminar categoria
-	la $t1, newobject
-	sw $t1, 20($t0)		# Opcion 6: Agregar objeto
-	la $t1, listobjects		
-	sw $t1, 24($t0)		# Opcion 7: Listar objetos
-	la $t1, delobject
-	sw $t1, 28($t0)		# Opcion 8: Borrar objeto
+ main:
+	# initialization scheduler vector
+	la $t0, schedv
+	la $t1, newcaterogy		# Crear nueva categorÃ­a
+	sw $t1, 0($t0)
+	la $t1, nextcategory		# Selecciona sig. categorÃ­a
+	sw $t1, 4($t0)
+	la $t1, prevcaterogy		# Selecciona categorÃ­a anterior
+	sw $t1, 8($t0)
+	la $t1, listcategories		# Imprime todas las categorÃ­as
+	sw $t1, 12($t0)
+	la $t1, delcaterogy		# Elimina la categorÃ­a actual
+	sw $t1, 16($t0)
+	la $t1, newobject		# Agg. un objeto a la categorÃ­a actual
+	sw $t1, 20($t0)
+	la $t1, listobjects		# Imprime los objetos dentro de la cat. actual
+	sw $t1, 24($t0)
+	la $t1, delobject		# Elimina un objeto de la cat. actual
+	sw $t1, 28($t0)
+ 
+ main_loop:
+	# show menu
+	jal menu_display		# Muestra el menÃº y espera la opciÃ³n del usuario
+	beqz $v0, main_end		# Si la opciÃ³n es 0, salir
+	addi $v0, $v0, -1		# Convierte la opciÃ³n en Ã­ndice del vector 'schedv'
+	sll $v0, $v0, 2         	# Multiplica por 4 (tamaÃ±o de direcciÃ³n en bytes)
+	la $t0, schedv			# Carga la direcciÃ³n base de schedv
+	add $t0, $t0, $v0		# Suma el desplazamiento (opciÃ³n ingresada * 4)
+	lw $t1, ($t0)			# Carga la direcciÃ³n de la funciÃ³n correspondiente en $t1
+    	la $ra, main_ret 		# Guarda la direcciÃ³n de retorno
+    	jr $t1				# Salta a la funciÃ³n seleccionada
+    	
+ main_ret:
+    	j main_loop	
+    		
+ main_end:					# Finaliza el programa si el usuario ingresÃ³ 0.
+	li $v0, 10
+	syscall
+
+ menu_display:
+	# write your code
+	la $a0, menu
+	li $v0, 4
+	syscall
+	li $v0, 5				# Leer un nÃºmero entero desde el teclado
+	syscall
+	# test if invalid option go to L1	# Maneja el error por si se ingresa un nÃºm. mayor a 8 o menor que 0.
+	bgt $v0, 8, menu_display_L1
+	bltz $v0, menu_display_L1
+	# else return
+	jr $ra
 	
-	li $v0, 10		# Salir del programa
-	syscall	
+	# print error 101 and try again
+ menu_display_L1:
+	print_error(101)		# Muestra "Error: 101"
+	j menu_display			# Vuelve a pedir la opciÃ³n al usuario
 	
-
- menu_loop:
-    	# Imprimir el menú
-    	la $a0, menu               	# Dirección del texto del menú
-    	li $v0, 4                  	# Syscall para imprimir texto
-    	syscall
-
-    	# Leer la opción del usuario
-    	li $v0, 5                  	# Syscall para leer un entero
-    	syscall
-    	move $t0, $v0              	# Guardar la opción ingresada en $t0
-
-    	# Validar la opción ingresada
-    	blt $t0, 0, invalid_option 	# Si $t0 < 0, opción inválida
-    	bgt $t0, 8, invalid_option 	# Si $t0 > 8, opción inválida
-
-    	# Ejecutar la opción seleccionada
-    	la $t1, schedv             	# Cargar la base del vector de funciones
-    	mul $t0, $t0, 4            	# Calcular el offset: $t0 * 4 (cada dirección es de 4 bytes)
-    	add $t2, $t1, $t0          	# Calcular la dirección efectiva: base + offset
-    	lw $t1, 0($t2)             	# Cargar la dirección de la función seleccionada
-    	jalr $t1                   	# Llamar a la función
-
-    	# Redibujar el menú
-    	j menu_loop                	# Volver al inicio del menú
-
- invalid_option:
-    	# Manejo del error 101: opción inválida
-    	li $v0, 4                  	# Syscall para imprimir texto
-    	la $a0, error              	# Mensaje: "Error 101: Opción inválida"
-    	syscall
-    	j menu_loop                	# Volver al menú
-
-
- newcategory:
-	addiu $sp, $sp, -4		# Crear espacio en el stack
-	sw $ra, 4($sp)		# Guardar la dirección de retorno
-	la $a0, catName 		# Pedir el nombre de la categoría
-	jal getblock		# Obtener memoria para el nombre
-	move $a2, $v0 		# Guardar la dirección del nombre de la categoría
-	la $a0, cclist 		# Dirección de la lista de categorías
-	li $a1, 0 		# Inicializar $a1 como NULL
-	jal addnode		# Agregar un nodo a la lista
-	lw $t0, wclist		# Verificar si hay una categoría seleccionada
-	bnez $t0, newcategory_end	# Si ya hay una categoría seleccionada, salir
-	sw $v0, wclist 		# Si no hay categoría seleccionada, usar la nueva
+ ###########   NUEVA CATEGORIA   ###########  
+ 
+ newcaterogy:
+	addiu $sp, $sp, -4
+	sw $ra, 4($sp)		# Guarda $ra en la pila para poder regresar despuÃ©s a 'main_loop'
+	la $a0, catName		# input category name
+	jal getblock		# Pide memoria para guardar el nombre de la categorÃ­a
+	move $a2, $v0		# $a2 = *char to category name
+	la $a0, cclist		# $a0 = list
+	li $a1, 0		# $a1 = NULL (porque una cat. no necesita ID)
+	jal addnode		# Crea un nodo en la lista de categorÃ­as
+	lw $t0, wclist
+	bnez $t0, newcategory_end
+	sw $v0, wclist		# update working list if was NULL
 	
  newcategory_end:
-	li $v0, 0 		# Indicar éxito
-	lw $ra, 4($sp)		# Restaurar la dirección de retorno
-	addiu $sp, $sp, 4		# Restaurar el stack
-	jr $ra		# Retornar
+	la $a0, success
+	li $v0, 4
+	syscall			# return success
+	lw $ra, 4($sp)
+	addiu $sp, $sp, 4
+	jr $ra
 	
-
+ ###########   CATEGORIA SIGUIENTE   ###########  
+  
  nextcategory:
-    	addiu $sp, $sp, -4         	# Crear espacio en el stack
-    	sw $ra, 4($sp)             	# Guardar la dirección de retorno
-
-    	lw $t0, wclist             	# Cargar la categoría actual
-    	beqz $t0, nextcategory_error_201 	# Si no hay categorías, error 201
-
-    	lw $t1, 12($t0)            	# Cargar el puntero 'next'
-    	beq $t1, $t0, nextcategory_error_202 	# Si hay una sola categoría, error 202
-
-    	sw $t1, wclist             	# Actualizar la categoría seleccionada
-
-    	# Imprimir el nombre de la categoría seleccionada
-    	li $v0, 4                  	# Código de syscall para imprimir cadena
-    	la $a0, selCat             	# Mensaje: "Se ha seleccionado la categoría:"
-    	syscall
-    	lw $a0, 8($t1)             	# Cargar el nombre de la categoría seleccionada
-    	syscall
-
-    	li $v0, 0                  	# Indicar éxito
-    	lw $ra, 4($sp)             	# Restaurar valor de retorno
-    	addiu $sp, $sp, 4          	# Restaurar el stack
-    	jr $ra                     	# Retornar
-
- nextcategory_error_201:
-    	li $v0, 4                  	# Imprimir mensaje de error 201
-    	la $a0, error              	# Mensaje: "Error 201: No hay categorías"
-    	syscall
-    	li $v0, 201                	# Código de error 201
-    	lw $ra, 4($sp)             	# Restaurar valor de retorno
-    	addiu $sp, $sp, 4          	# Restaurar el stack
-    	jr $ra                     	# Retornar con error
-
- nextcategory_error_202:
-    	li $v0, 4                  	# Imprimir mensaje de error 202
-    	la $a0, error              	# Mensaje: "Error 202: Solo hay una categoría"
-    	syscall
-    	li $v0, 202                	# Código de error 202
-    	lw $ra, 4($sp)             	# Restaurar valor de retorno
-    	addiu $sp, $sp, 4          	# Restaurar el stack
-    	jr $ra                     	# Retornar con error
-
-
-
- prevcategory:
-    	addiu $sp, $sp, -4         	# Crear espacio en el stack
-    	sw $ra, 4($sp)             	# Guardar la dirección de retorno
-
-    	lw $t0, wclist             	# Cargar la categoría actual
-    	beqz $t0, prevcategory_error_201 	# Si no hay categorías, error 201
-
-    	lw $t1, 0($t0)             	# Cargar el puntero 'prev'
-    	beq $t1, $t0, prevcategory_error_202 	# Si hay una sola categoría, error 202
-
-    	sw $t1, wclist             	# Actualizar la categoría seleccionada
-
-    	# Imprimir el nombre de la categoría seleccionada
-    	li $v0, 4                  	# Código de syscall para imprimir cadena
-    	la $a0, selCat             	# Mensaje: "Se ha seleccionado la categoría:"
-    	syscall
-    	lw $a0, 8($t1)             	# Cargar el nombre de la categoría seleccionada
-    	syscall
-
-    	li $v0, 0                  	# Indicar éxito
-    	lw $ra, 4($sp)             	# Restaurar valor de retorno
-    	addiu $sp, $sp, 4          	# Restaurar el stack
-    	jr $ra                     	# Retornar
-
- prevcategory_error_201:
-    	li $v0, 4                  	# Imprimir mensaje de error 201
-    	la $a0, error              	# Mensaje: "Error 201: No hay categorías"
-    	syscall
-    	li $v0, 201                	# Código de error 201
-    	lw $ra, 4($sp)             	# Restaurar valor de retorno
-    	addiu $sp, $sp, 4          	# Restaurar el stack
-    	jr $ra                     	# Retornar con error
-
- prevcategory_error_202:
-    	li $v0, 4                  	# Imprimir mensaje de error 202
-    	la $a0, error              	# Mensaje: "Error 202: Solo hay una categoría"
-    	syscall
-    	li $v0, 202                	# Código de error 202
-    	lw $ra, 4($sp)             	# Restaurar valor de retorno
-    	addiu $sp, $sp, 4          	# Restaurar el stack
-    	jr $ra                     	# Retornar con error
-
-
- listcategories:
-    	addiu $sp, $sp, -4         	# Crear espacio en el stack
-    	sw $ra, 4($sp)             	# Guardar la dirección de retorno
-
-    	lw $t0, cclist             	# Cargar la cabeza de la lista de categorías
-    	beqz $t0, listcategories_error_301 	# Si la lista está vacía, error 301
-
-    	move $t1, $t0              	# Nodo actual
-
- list_loop:
-    	lw $t2, wclist             	# Cargar la categoría seleccionada en curso
-    	beq $t1, $t2, print_selected 	# Si el nodo actual es la categoría seleccionada
-
-    	# Categoría no seleccionada: Imprimir el nombre
-    	li $v0, 4                  	# Imprimir texto
-    	lw $a0, 8($t1)             	# Cargar el nombre de la categoría
-    	syscall
-    	j move_to_next_node        	# Ir al siguiente nodo
-
- print_selected:
-    	# Categoría seleccionada: Imprimir ">" seguido del nombre
-    	li $v0, 4                  	# Imprimir texto
-    	la $a0, selCat             	# Símbolo ">"
-    	syscall
-    	li $v0, 4
-    	lw $a0, 8($t1)             	# Imprimir el nombre de la categoría seleccionada
-    	syscall
-
- move_to_next_node:
-    	lw $t1, 12($t1)           	# Mover al siguiente nodo
-    	bne $t1, $t0, list_loop    	# Si no volvemos al inicio, continuar
-
-    	li $v0, 0                  	# Indicar éxito
-    	lw $ra, 4($sp)             	# Restaurar valor de retorno
-    	addiu $sp, $sp, 4          	# Restaurar el stack
-    	jr $ra                     	# Retornar
-
- listcategories_error_301:
-    	li $v0, 4                  	# Imprimir mensaje de error
-    	la $a0, error              	# Mensaje: "Error 301: No hay categorías"
-    	syscall
-    	li $v0, 301                	# Código de error 301
-    	lw $ra, 4($sp)             	# Restaurar valor de retorno
-    	addiu $sp, $sp, 4          	# Restaurar el stack
-    	jr $ra                     	# Retornar con error
-
-
- delcategory:
-    	addiu $sp, $sp, -4         	# Crear espacio en el stack
-    	sw $ra, 4($sp)             	# Guardar la dirección de retorno
-
-    	lw $t0, wclist             	# Cargar la categoría seleccionada
-    	beqz $t0, delcategory_error_401 	# Si no hay categorías seleccionadas, error 401
-
-    	# Verificar si la lista de objetos está vacía
-    	lw $t3, 4($t0)             	# Cargar la lista de objetos de la categoría
-    	bnez $t3, delete_objects   	# Si no está vacía, ir a eliminar objetos
-
- delete_category:
-    	lw $t1, 0($t0)             	# Cargar el puntero 'prev'
-    	lw $t2, 12($t0)            	# Cargar el puntero 'next'
-
-    	sw $t2, 12($t1)            	# El nodo anterior apunta al siguiente
-    	sw $t1, 0($t2)             	# El nodo siguiente apunta al anterior
-
-    	# Si era la única categoría, vaciar la lista
-    	beq $t0, $t2, empty_list
-
-    	sw $t2, wclist             	# Actualizar la categoría seleccionada
-    	move $a0, $t0              	# Preparar el nodo para liberar
-    	jal delnode                	# Llamar a delnode para liberar memoria
-
-    	li $v0, 0                  	# Indicar éxito
-    	lw $ra, 4($sp)             	# Restaurar valor de retorno
-    	addiu $sp, $sp, 4          	# Restaurar el stack
-    	jr $ra                     	# Retornar
-
- delete_objects:
-    	# Recorrer y borrar todos los objetos de la categoría
-    	move $t4, $t3              	# Nodo actual (lista de objetos)
+	lw $t0, cclist             	# Contiene la direcciÃ³n de la 1er cat. de la lista
+	beqz $t0, error201		# Verificamos que existan categorias
+	lw $t1, 12($t0)
+	beq $t0, $t1, error202  	# Verificamos que exista mas de 1 categoria 
+	
+ nextCategory_select:
+	lw $t0, wclist			# Cargamos la categoria en curso
+	lw $t1, 12($t0)			# Cargamos la siguiente categorÃ­a
+	sw $t1, wclist			# Actualizamos la categoria en curso a la categoria siguiente
+	la $a0, selCat			# Imprimimos mensaje de la categor a seleccionada
+        	li $v0, 4
+        	syscall
+        	lw $a0, 8($t1)		# Imprimimos la nueva categoria en curso		
+        	li $v0, 4
+        	syscall
+        	j nextcategory_end
+        	
+ error201:
+    	print_error(201)
+    	j menu_display
     	
- delete_objects_loop:
-    	lw $t5, 12($t4)            	# Cargar el siguiente nodo
-    	move $a0, $t4              	# Preparar el nodo actual para liberar
-    	lw $a1, 4($t0)             	# Pasar la dirección de la lista de objetos
-    	jal delnode                	# Llamar a delnode para liberar el nodo
-    	move $t4, $t5              	# Mover al siguiente nodo
-    	bnez $t4, delete_objects_loop 	# Si quedan más nodos, continuar
-
-    	# Lista de objetos vacía, proceder a borrar la categoría
-    	j delete_category
-
- empty_list:
-    	sw $zero, cclist           	# Vaciar la lista de categorías
-    	sw $zero, wclist           	# No hay categoría seleccionada
-    	li $v0, 0                  	# Indicar éxito
-    	lw $ra, 4($sp)             	# Restaurar valor de retorno
-    	addiu $sp, $sp, 4          	# Restaurar el stack
-    	jr $ra                     	# Retornar
-
- delcategory_error_401:
-    	li $v0, 4                  	# Imprimir mensaje de error
-    	la $a0, error              	# Mensaje: "Error 401: No hay categorías disponibles"
+ error202:
+    	print_error(202)
+    	j menu_display
+    	
+ nextcategory_end:
+	la $a0, success		
+	li $v0, 4
+	syscall
+	jr $ra
+	
+ ###########   CATEGORIA ANTERIOR   ###########  
+  
+ prevcaterogy:
+	lw $t0, cclist		#Verificamos que existan categorias
+	beqz $t0, error201
+	lw $t1, 12($t0)		# Verificamos que exista una categorÃ­a anterior
+	beq $t0, $t1, error202	#Verificamos que exista mas de 1 categoria 
+			
+ prevcategory_select:
+	lw $t0, wclist		#Cargamos la categoria en curso
+	lw $t1, 0($t0)		#Cargamos la categorÃ­a anterior
+	sw $t1, wclist		#Actualizamos la categoria en curso a la categoria anterior
+	la $a0, selCat
+        	li $v0, 4
+        	syscall
+        	lw $a0, 8($t1)		#Imprimimos la nueva categoria en curso
+        	li $v0, 4
+       	 syscall
+	j prevcategory_end	
+	
+ prevcategory_end:
+	la $a0, success
+	li $v0, 4
+	syscall
+	jr $ra
+	
+ ###########   LISTAR  CATEGORIAS   ###########  
+ 
+ listcategories:
+    	lw $t0, cclist			# Verificamos que existan categorias
+    	beqz $t0, error301     
+    	lw $t1, cclist  		# Cargamos en t1 la primer categoria
+    	lw $t2, wclist   		# Cargamos en t2 la categoria en curso
+    	la $a0, mensaje_listadoCats
+    	li $v0, 4
     	syscall
-    	li $v0, 401                	# Código de error 401
-    	lw $ra, 4($sp)             	# Restaurar valor de retorno
-    	addiu $sp, $sp, 4          	# Restaurar el stack
-    	jr $ra                     	# Retornar con error
-
-
+    	
+ listcategories_loop:
+    	beq $t0, $t2, listcategories_wcprint	# Si la cat. en curso es la actual, ir a etiqueta
+    	lw $a0, 8($t0)     			# Cargamos la direcciÃ³n del  nombre de la cat.	
+    	li $v0, 4           
+    	syscall            
+    	j listcategories_continue
+    		
+ listcategories_wcprint:
+    	la $a0, marca				# Si la categoria a imprimir es la categoria en curso le colocamos una distincion (>)
+    	li $v0, 4
+    	syscall
+    	lw $a0, 8($t0)     			# Cargamos la direcciÃ³n del nombre de la categorÃ­a
+    	li $v0, 4           
+    	syscall 				# Imprimimos la categorÃ­a
+    	
+ listcategories_continue:
+    	lw $t0, 12($t0)     			# Avanzamos a la siguiente categoria
+    	beq $t0, $t1, listcategories_end  	# t1 tiene el primer nodo y $t0 el nodo a imprimir, si son iguales significa que ya imprimimos todas las categorias y finaliza la funciÃ³n.
+    	j listcategories_loop 
+    	
+ error301:
+    	print_error(301)
+    	j menu_display
+    	
+ listcategories_end:
+    	la $a0, success
+	li $v0, 4
+	syscall
+    	jr $ra
+    	
+ ###########   BORRAR CATEGORIA   ###########   
+ 
+ delcaterogy:
+	addiu $sp, $sp, -4
+	sw $ra, 4($sp)
+	lw $t0, cclist			#Verificamos que existan categorias
+	beqz $t0, error401		
+	la $a1, cclist			#Cargamos en a1 la direccion de la lista que tiene el nodo a eliminar
+	lw $a0, wclist			#Cargamos en a0 el nodo a eliminar
+	lw $t1, 4($a0)			
+	bnez $t1, errorCatNoVacia	#Verificamos que la categoria no tenga objetos, de lo contrario deber  eliminarlos primero
+	lw $t3, 12($a0)			
+	sw $t3, wclist			#Actualizamos la cateogoria en curso a la siguiente a eliminar
+	bne $a0, $t3, delnode		#Verificamos que exista mas de 1 categoria
+	sw $0, wclist			#Si hay 1 sola categoria, ponemos nula la categoria en curso
+	jal delnode			#Eliminamos la unica categoria existente
+	j delcategory_end
+	
+ error401:
+	print_error(401)
+    	j menu_display
+    	
+ errorCatNoVacia:
+	la $a0, mensaje_categoriaNoVacia
+	li $v0, 4
+	syscall
+	j menu_display
+	
+ delcategory_end:
+	lw $ra, 4($sp)
+	addiu $sp, $sp, 4
+	la $a0, success
+	li $v0, 4
+	syscall
+	jr $ra
+	
+ ###########   AGREGAR OBJETO A LA CATEGORIA ACTUAL   ###########   
+ 
  newobject:
-    	addiu $sp, $sp, -4         	# Crear espacio en el stack
-    	sw $ra, 4($sp)             	# Guardar la dirección de retorno
+	la $a0, cclist			
+	lw $t0, 0($a0)
+	beq $t0, 0, error501		#Verificamos que existan categorias
+	addiu $sp, $sp, -4
+	sw $ra, 4($sp)
+	la $a0, objName			
+	jal getblock			#Establecemos el nombre del objeto	
+	move $a2, $v0			#Lo movemos a a2
+	lw $t2, wclist			#Cargamos la direcciÃ³n de la categoria en curso
+	lw $t3, 4($t2)			#Cargamos el campo que apunta al primer objeto. Obtiene el valor almacenado en 4($t2)
+	lw $t4, 4($t2)			#Guardamos la direcciÃ³n del 1er objeto para detectar el final del bucle.
+	la $a0, 4($t2)			#Cargamos en $a0 la direcciÃ³n de la variable 4($t2)
+	li $t6, 1
+	beqz $t3, firstnode_add		#Si el puntero al primer objeto es nulo, a adimos el primer objeto
+	j findlastnode_loop		#Si ya hay objetos, buscamos el ultimo para tomar su id e incrementarla en 1 
 
-    	lw $t0, wclist             	# Cargar la categoría seleccionada
-    	beqz $t0, newobject_error_501 	# Si no hay categoría seleccionada, error 501
-
-    	lw $t1, 4($t0)             	# Cargar la lista de objetos de la categoría
-    	beqz $t1, newobject_empty_list 	# Si la lista está vacía, el ID será 1
-
-    	# Encontrar el último objeto en la lista para determinar el ID
-    	move $t2, $t1              	# Nodo actual
-
- find_last_object:
-    	lw $t3, 12($t2)            	# Cargar el puntero 'next'
-    	beq $t3, $t1, last_object_found 	# Si volvemos al inicio, hemos encontrado el último
-    	move $t2, $t3              	# Mover al siguiente nodo
-    	j find_last_object
-
- last_object_found:
-    	lw $t4, 4($t2)             	# Cargar el ID del último objeto
-    	addiu $t4, $t4, 1          	# ID del nuevo objeto = último ID + 1
-    	j create_new_object
-
- newobject_empty_list:
-    	li $t4, 1                  	# ID por defecto = 1
-
- create_new_object:
-    	la $a0, objName            	# Pedir el nombre del objeto
-    	jal getblock               	# Obtener memoria para el nombre
-    	move $a2, $v0              	# $a2 = Dirección al nombre del objeto
-
-    	lw $a0, 4($t0)             	# Cargar la lista de objetos de la categoría
-    	move $a1, $t4              	# $a1 = ID del objeto
-    	jal addnode                	# Agregar el nuevo nodo de objeto
-
-    	# Imprimir mensaje de éxito
-    	li $v0, 4                  	# Imprimir texto
-    	la $a0, success            	# Mensaje: "La operación se realizó con éxito"
-    	syscall
-
-    	li $v0, 0                  	# Indicar éxito
-    	lw $ra, 4($sp)             	# Restaurar valor de retorno
-    	addiu $sp, $sp, 4          	# Restaurar el stack
-    	jr $ra                     	# Retornar
-
- newobject_error_501:
-    	li $v0, 4                  	# Imprimir mensaje de error
-    	la $a0, error              	# Mensaje: "Error 501: No hay categoría seleccionada"
-    	syscall
-    	li $v0, 501                	# Código de error 501
-    	lw $ra, 4($sp)             	# Restaurar valor de retorno
-    	addiu $sp, $sp, 4          	# Restaurar el stack
-    	jr $ra                     	# Retornar con error
-
+ findlastnode_loop:	
+	lw $t6, 4($t3)			#En este loop recorremos los objetos hasta llegar al  Ãºltimo, tomamos su id y le aÃ±adimos 1, para que el nuevo nodo tenga por id uno mayor al ultimo
+	addi $t6, $t6, 1
+	lw $t3, 12($t3)	
+	beq $t3, $t4, othernode_add		
+	j findlastnode_loop	
+	
+ othernode_add:
+	move $a1, $t6			#Cargamos en $a1 el id que va a tener el nuevo nodo
+	jal addnode			
+	j newobject_end
+				
+ firstnode_add:
+	move $a1, $t6
+	jal addnode
+	la $t5, ($v0)
+	sw $t5, 4($t2)			#Hacemos que el puntero de lista apunte al primer objeto
+	j newobject_end
+	
+ error501:
+    	print_error(501)
+    	j menu_display	
+    		
+ newobject_end:			
+	lw $ra, 4($sp)			# Recuperamos la direcciÃ³n de retorno
+	addiu $sp, $sp, 4		# Liberamos espacio en la pila
+	la $a0, success			# Mensaje de Ã©xito
+	li $v0, 4			# CÃ³digo de syscall para imprimir cadena de caracteres
+	syscall
+	jr $ra				# Retornamos a la funciÃ³n que nos llamÃ³ 
+	
+###########   LISTAR OBJETOS  ########### 
 
  listobjects:
-    	addiu $sp, $sp, -4         	# Crear espacio en el stack
-    	sw $ra, 4($sp)             	# Guardar la dirección de retorno
-
-    	lw $t0, wclist             	# Cargar la categoría seleccionada
-    	beqz $t0, listobjects_error_601 	# Si no hay categoría seleccionada, error 601
-
-    	lw $t1, 4($t0)             	# Cargar la lista de objetos de la categoría
-    	beqz $t1, listobjects_error_602 	# Si no hay objetos, error 602
-
-    	move $t2, $t1              	# Nodo actual (primer objeto)
-
- list_obj_loop:
-    	# Imprimir el nombre del objeto
-    	li $v0, 4                  	# Código de syscall para imprimir cadena
-    	lw $a0, 8($t2)             	# Cargar el campo 'data' (nombre del objeto)
-    	syscall
-
-    	# Imprimir el ID del objeto
-    	li $v0, 1                  	# Código de syscall para imprimir un entero
-    	lw $a0, 4($t2)             	# Cargar el campo 'ID' del objeto
-    	syscall
-
-    	# Imprimir una línea de separación entre objetos
-    	li $v0, 4
-    	la $a0, return             	# Salto de línea
-    	syscall
-
-    	# Mover al siguiente nodo
-    	lw $t2, 12($t2)            	# Cargar el puntero 'next'
-    	bne $t2, $t1, list_obj_loop 	# Si no volvimos al inicio, continuar
-
-    	li $v0, 0                  	# Indicar éxito
-    	lw $ra, 4($sp)             	# Restaurar valor de retorno
-    	addiu $sp, $sp, 4          	# Restaurar el stack
-    	jr $ra                     	# Retornar
-
- listobjects_error_601:
-    	# Imprimir mensaje de error 601
-    	li $v0, 4                  	# Código de syscall para imprimir cadena
-    	la $a0, error              	# Mensaje: "Error 601: No hay categorías creadas"
-    	syscall
-    	li $v0, 601                	# Código de error 601
-    	lw $ra, 4($sp)             	# Restaurar valor de retorno
-    	addiu $sp, $sp, 4          	# Restaurar el stack
-    	jr $ra                     	# Retornar con error
-
- listobjects_error_602:
-    	# Imprimir mensaje de error 602
-    	li $v0, 4                  	# Código de syscall para imprimir cadena
-    	la $a0, error              	# Mensaje: "Error 602: No hay objetos en la categoría"
-    	syscall
-    	li $v0, 602                	# Código de error 602
-    	lw $ra, 4($sp)             	# Restaurar valor de retorno
-    	addiu $sp, $sp, 4          	# Restaurar el stack
-    	jr $ra                     	# Retornar con error
+        	lw $t0, wclist		#Verificamos que existan categorias
+	beq $t0, 0, error601
+	lw $t1, 4($t0)
+	beq $t1, 0, error602		#Verificamos que la categoria en curso tenga al menos 1 objeto
+	lw $t2, 4($t0) 		
+	la $a0, mensaje_listadoObjs
+	li $v0, 4
+	syscall
+	lw $a0, 8($t0)			#Imprimimos el nombre de la categoria en curso
+	li $v0, 4
+	syscall
 	
+ listobjects_loop:
+	la $a0, Id
+	li $v0, 4
+	syscall
+	lw $a0, 4($t1)
+	li $v0, 1
+	syscall
+	la $a0, dospuntos
+	li $v0, 4
+	syscall
+	lw $a0, 8($t1) 			#Imprimimos el nombre del objeto
+	li $v0, 4
+	syscall
 	
+ listobjects_continue:
+    	lw $t1, 12($t1)     		#Avanzamos al siguiente objeto
+    	beq $t1, $t2, listobject_end 	#Si ya imprimimos todos los objetos finalizamos
+    	j listobjects_loop 		#Si faltan objetos por imprimir volvemos al bucle
+    	
+ error601: 
+    	print_error(601)
+    	j menu_display
+    	
+ error602:
+    	print_error(602)
+    	j menu_display
+    	
+ listobject_end:
+    	la $a0, success
+	li $v0, 4
+	syscall
+	jr $ra
+	
+ ###########   ELIMINAR OBJETO DE LA CATEGORIA ACTUAL   ###########  
+ 
  delobject:
-    	addiu $sp, $sp, -4         	# Crear espacio en el stack
-    	sw $ra, 4($sp)             	# Guardar la dirección de retorno
+	la $a0, cclist				#Verificamos que existan categorias
+	lw $t0, 0($a0)
+	beqz $t0, error701		
+	lw $t0, wclist
+	lw $a1, 4($t0)				#Cargamos el primer objeto
+	la $a0, idObj				#Pedimos el id del objeto a eliminar
+	li $v0, 4
+	syscall
+	li $v0, 5				#Pedimos el id del objeto a eliminar
+	syscall
+	move $t1, $v0				#Movemos el id ingresado por el usuario al registro $t1
+	move $a0, $a1				#Movemos el primer objeto al registro $a0
+	lw $t6, 4($a0)				#Cargamos en $t6 el ID del Objeto en curso				
+	beq $t1, $t6, delobject_firstobj	#Comparamos la ID ingresada con el ID del objeto en curso, si es el primero saltamos a la funcion
+	lw $a0, 12($a0)				#Si no es el primer objeto, avanzamos al siguiente
+	lw $t6, 4($a0)				#Y cargamos la ID del siguiente objeto en $t6
 
-    	lw $t0, wclist             	# Cargar la categoría seleccionada
-    	beqz $t0, delobject_error_701 	# Si no hay categorías, error 701
-
-    	lw $t1, 4($t0)             	# Cargar la lista de objetos
-    	beqz $t1, delobject_error_702 	# Si no hay objetos, error 702
-
-    	# Pedir el ID del objeto a eliminar
-    	li $v0, 4                  	# Mostrar mensaje al usuario
-    	la $a0, idObj              	# "Ingrese el ID del objeto a eliminar:"
-    	syscall
-
-    	li $v0, 5                  	# Leer el ID ingresado por el usuario
-    	syscall
-    	move $t2, $v0              	# Guardar el ID en $t2
-
-    	move $t3, $t1              	# Nodo actual (primer objeto)
-
- del_obj_loop:
-    	lw $t4, 4($t3)             	# Cargar el campo 'ID' del nodo actual
-    	beq $t4, $t2, del_obj_found 	# Si el ID coincide, ir a eliminar el nodo
-
-    	lw $t3, 12($t3)            	# Mover al siguiente nodo
-    	bne $t3, $t1, del_obj_loop 	# Si no volvimos al inicio, continuar
-
-    	# Si el bucle termina y no encontramos el ID, mostrar "notFound"
-    	j delobject_not_found
-
- del_obj_found:
-    	move $a0, $t3              	# Preparar el nodo para liberar
-    	lw $a1, 4($t0)             	# Dirección de la lista de objetos
-    	jal delnode                	# Llamar a delnode para liberar el nodo
-
-    	# Imprimir mensaje de éxito
-    	li $v0, 4
-    	la $a0, success            	# "La operación se realizó con éxito"
-    	syscall
-
-    	li $v0, 0                  	# Indicar éxito
-    	lw $ra, 4($sp)             	# Restaurar valor de retorno
-    	addiu $sp, $sp, 4          	# Restaurar el stack
-    	jr $ra                     	# Retornar
-
- delobject_not_found:
-    	# Imprimir el mensaje "notFound"
-    	li $v0, 4
-    	la $a0, error              	# "notFound"
-    	syscall
-    	li $v0, -1                 	# Retornar un código de error genérico
-    	lw $ra, 4($sp)             	# Restaurar valor de retorno
-    	addiu $sp, $sp, 4          	# Restaurar el stack
-    	jr $ra
-
- delobject_error_701:
-    	# Imprimir mensaje de error 701
-    	li $v0, 4                  	# Mostrar mensaje al usuario
-    	la $a0, error              	# "Error 701: No hay categorías creadas"
-    	syscall
-    	li $v0, 701                	# Código de error 701
-    	lw $ra, 4($sp)             	# Restaurar valor de retorno
-    	addiu $sp, $sp, 4          	# Restaurar el stack
-    	jr $ra
-
- delobject_error_702:
-    	# Imprimir mensaje de error 702
-    	li $v0, 4
-    	la $a0, error_702          	# "Error 702: No hay objetos en la categoría seleccionada"
-    	syscall
-    	li $v0, 702                	# Código de error 702
-    	lw $ra, 4($sp)             	# Restaurar valor de retorno
-    	addiu $sp, $sp, 4          	# Restaurar el stack
-    	jr $ra
+ delobject_findobj:
+	beq $t1, $t6, delnode			#Iteramos hasta encontrar el objeto a eliminar, encontrado llamamos a la funcion delnode
+	lw $a0, 12($a0)
+	lw $t6, 4($a0)
+	beq $a0, $a1, error_notfound		#Si recorrimos todos los objetos y no hay ninguno con el ID indicado devolvemos error notFound
+	j delobject_findobj
 	
-
+ delobject_firstobj:
+	lw $t4, 12($a0)				#Si el objeto a eliminar es el primero
+	sw $t4, 4($t0) 				#Actualizamos el puntero a la lista de objetos para que apunte al siguiente
+	bne $t4, $a0, delnode			#Si el primero y el sgte son iguales, entonces hay 1 solo	
+	li $t5, 0				
+	sw $t5, 4($t0)				#Si no quedan objetos en la lista, actualizamos el puntero a la lista a valor NULL
+	j delnode
+	
+ delobject_end:
+	la $a0, success
+	li $v0, 4
+	syscall
+	
+ error_notfound:
+	la $a0, ErrorNotFound
+	li $v0, 4
+	syscall
+	j menu_display
+		
+ error701:
+    	print_error(701)
+    	j menu_display
+    	
+ # a0: list address
+ # a1: NULL if category, node address if object
+ # v0: node address added
+ 
  addnode:
-    	addi $sp, $sp, -8         	# Reservar espacio en el stack
-    	sw $ra, 8($sp)            	# Guardar el valor de retorno
-    	sw $a0, 4($sp)            	# Guardar el argumento de entrada $a0 en el stack
-
-    	# Verificar si hay nodos libres en la lista slist
-    	lw $t0, slist             	# Cargar el puntero a la lista de nodos libres
-    	beqz $t0, addnode_empty_list 	# Si no hay nodos libres, crear un nodo nuevo
-
-    	# Reutilizar nodo de la lista slist
-    	lw $v0, slist             	# Cargar la dirección del nodo libre
-    	lw $t0, 12($v0)           	# Actualizar el puntero al siguiente nodo libre
-    	sw $t0, slist             	# Actualizar la lista de nodos libres
-
+	addi $sp, $sp, -8
+	sw $ra, 8($sp)
+	sw $a0, 4($sp)
+	jal smalloc
+	sw $a1, 4($v0) 			# set node content (ID)
+	sw $a2, 8($v0)			# store data (nombre)
+	lw $a0, 4($sp)
+	lw $t0, ($a0) 			# first node address
+	beqz $t0, addnode_empty_list
+	
  addnode_to_end:
-    	lw $t0, ($a0)             	# Cargar la dirección del primer nodo en la lista
-    	beqz $t0, addnode_empty_list 	# Si la lista está vacía, inicializarla
-
-    	lw $t1, ($t0)             	# Cargar la dirección del último nodo
-    	# Actualizar punteros 'prev' y 'next' del nuevo nodo
-    	sw $t1, 0($v0)            	# Establecer el puntero 'prev'
-    	sw $t0, 12($v0)           	# Establecer el puntero 'next'
-
-    	# Actualizar la lista existente
-    	sw $v0, 12($t1)           	# El último nodo ahora apunta al nuevo nodo
-    	sw $v0, 0($t0)            	# El primer nodo apunta al nuevo nodo
-    	j addnode_exit            	# Salir
-
+	lw $t1, ($t0) 			# last node address, cargamos en $t1 la direcciÃ³n del Ãºltimo nodo de la lista
+ 	# update prev and next pointers of new node
+	sw $t1, 0($v0)			# Hacemos que el nuevo nodo apunte al Ãºltimo nodo como 'prev'
+	sw $t0, 12($v0)			# Hacemos que el nuevo nodo apunte al primer nodo como 'next'
+	# update prev and first node to new node
+	sw $v0, 12($t1)			# Hacemos que el Ãºltimo nodo apunte al nuevo nodo como 'next'
+	sw $v0, 0($t0)			# Hacemos que el primer nodo apunte al nuevo nodo como 'prev'
+	j addnode_exit
+	
  addnode_empty_list:
-    	# Inicializar la lista si está vacía
-    	sw $v0, ($a0)             	# La lista apunta al nuevo nodo
-    	sw $v0, 0($v0)            	# El nuevo nodo se apunta a sí mismo (prev)
-    	sw $v0, 12($v0)           	# El nuevo nodo se apunta a sí mismo (next)
-
+	sw $v0, ($a0)		# La lista ahora apunta al nuevo nodo
+	sw $v0, 0($v0)		# El nodo apunta a sÃ­ mismo como 'prev'
+	sw $v0, 12($v0)		# El nodo apunta a sÃ­ mismo como 'next'
+	
  addnode_exit:
-    	lw $ra, 8($sp)            	# Restaurar el valor de retorno
-    	addi $sp, $sp, 8          	# Liberar el stack
-    	jr $ra                    	# Retornar
-	
-	
+	lw $ra, 8($sp)
+	addi $sp, $sp, 8
+	jr $ra			# Retornamos a la funciÃ³n que  llamÃ³ 'addnode'
+
+ # a0: node address to delete
+ # a1: list address where node is deleted
+ 
  delnode:
-    	addi $sp, $sp, -8         	# Reservar espacio en el stack
-    	sw $ra, 8($sp)            	# Guardar el valor de retorno
-    	sw $a0, 4($sp)            	# Guardar el nodo a eliminar en el stack
-
-    	lw $t0, 12($a0)           	# Cargar la dirección del nodo siguiente
-    	beq $a0, $t0, delnode_point_self 	# Si es el único nodo, manejar caso especial
-
-    	lw $t1, 0($a0)            	# Cargar la dirección del nodo anterior
-    	sw $t1, 0($t0)            	# Actualizar el puntero 'prev' del nodo siguiente
-    	sw $t0, 12($t1)           	# Actualizar el puntero 'next' del nodo anterior
-
-    	lw $t1, 4($sp)            	# Restaurar la dirección de la lista
-    	lw $t2, ($t1)             	# Cargar el primer nodo de la lista
-    	bne $a0, $t2, delnode_exit 	# Si no es el primer nodo, salir
-
-    	# Si es el primer nodo, actualizar la lista
-    	sw $t0, ($t1)
-
+	addi $sp, $sp, -8
+	sw $ra, 8($sp)			# DirecciÃ³n de retorno
+	sw $a0, 4($sp)			# DirecciÃ³n del nodo
+	lw $a0, 8($a0) 			# get block address
+	jal sfree 			# free block
+	lw $a0, 4($sp) 			# Restauramos la direcciÃ³n del nodo a eliminar
+	lw $t0, 12($a0)			# Cargamos la direcciÃ³n del siguiente nodo 
+	beq $a0, $t0, delnode_point_self
+	lw $t1, 0($a0) 			# get address to prev node, cargamos la direcciÃ³n del nodo anterior
+	sw $t1, 0($t0)			# El siguiente nodo apunta al nodo anterior  como 'prev'
+	sw $t0, 12($t1)			# El nodo anterior apunta al siguiente nodo como 'next'
+	lw $t1, 0($a1) 			# get address to first node again
+	bne $a0, $t1, delnode_exit	# Si no era el primer nodo, saltamos a la salida
+	sw $t0, ($a1) 			# list point to next node
+	j delnode_exit
+	
  delnode_point_self:
-    	# Caso especial: el nodo eliminado es el único en la lista
-    	sw $zero, ($t1)           	# Vaciar la lista
-
+	sw $zero, ($a1) 		# only one node
+	
  delnode_exit:
-    	# Añadir el nodo eliminado a la lista de nodos libres (slist)
-    	lw $t0, slist             	# Cargar la lista de nodos libres
-    	sw $t0, 12($a0)           	# El nodo eliminado apunta al primer nodo libre
-    	sw $a0, slist             	# Actualizar la lista de nodos libres
+	jal sfree			# Liberamos memoria del nodo eliminado
+	lw $ra, 8($sp)			# Restauramos la direcciÃ³n de retorno
+	addi $sp, $sp, 8		# Restauramos la pila
+	jr $ra				# Retornamos a la funciÃ³n que llamÃ³ a 'delnode'
 
-    	lw $ra, 8($sp)            	# Restaurar el valor de retorno
-    	addi $sp, $sp, 8          	# Liberar el stack
-    	jr $ra                    	# Retornar
-	
-	
+ # a0: msg to ask
+ # v0: block address allocated with string
+ 
  getblock:
-    	addi $sp, $sp, -4         	# Reservar espacio en el stack
-    	sw $ra, 4($sp)            	# Guardar el valor de retorno
+	addi $sp, $sp, -4	# Reservamos espacio en la pila
+	sw $ra, 4($sp)		# Guardamos $ra en la pila
+	li $v0, 4
+	syscall
+	jal smalloc		# Llamamos a smalloc para reservar memoria
+	move $a0, $v0		# Guardamos la direcciÃ³n de la memoria reservada en $a0
+	li $a1, 16		# 16 caracteres como tamaÃ±o mÃ¡ximo
+	li $v0, 8		# CÃ³digo syscall para leer un string
+	syscall
+	move $v0, $a0		# Guardamos en $v0 la direcciÃ³n del bloque de memoria
+	lw $ra, 4($sp)		# Restauramos la direcciÃ³n de retorno
+	addi $sp, $sp, 4	# Restauramos la pila
+	jr $ra	
 
-    	li $v0, 4                 	# Syscall para imprimir mensaje de solicitud
-    	syscall
+ smalloc:
+	lw $t0, slist		# Cargamos la direcciÃ³n del 1er bloque libre en $t0
+	beqz $t0, sbrk		# Pedir mÃ¡s memoria si $t0 es NULL
+	move $v0, $t0		# Devolvemos en $v0 la direcciÃ³n del bloque de memoria asignado
+	lw $t0, 12($t0)		# Cargamos la direcciÃ³n del sig. bloque libre en la lista
+	sw $t0, slist		# Actualizamos slist para que apunte al sig. bloque libre
+	jr $ra			# Retornar a la funciÃ³n que llamÃ³ a smalloc
+	
+ sbrk:
+	li $a0, 16 		# node size fixed 4 words, reserva 16 bytes 
+	li $v0, 9		# CÃ³digo syscall para reservar memoria en el heap
+	syscall 		# return node address in v0
+	jr $ra
 
-    	# Verificar si hay nodos libres
-    	lw $v0, slist             	# Cargar la lista de nodos libres
-    	beqz $v0, getblock_error  	# Si no hay nodos libres, manejar el error
+ sfree:
+	lw $t0, slist		# Cargamos en $t0 la direcciÃ³n del 1er bloque libre
+	sw $t0, 12($a0)		# Guardamos en 12($a0) la direcciÃ³n del 1er bloque libre
+	sw $a0, slist 		# Slist apunta al nodo reciÃ©n liberado
+	jr $ra
 
-    	# Extraer un nodo de la lista de nodos libres
-    	lw $t0, 12($v0)           	# Cargar el siguiente nodo libre
-    	sw $t0, slist             	# Actualizar la lista de nodos libres
-
-    	# Pedir la cadena de caracteres al usuario
-    	move $a0, $v0             	# Dirección del bloque asignado
-    	li $a1, 16                	# Longitud máxima de la cadena
-    	li $v0, 8                 	# Syscall para leer cadena
-    	syscall
-
-    	lw $ra, 4($sp)            	# Restaurar el valor de retorno
-    	addi $sp, $sp, 4          	# Liberar el stack
-    	jr $ra                    	# Retornar
-
- getblock_error:
-    	la $a0, error             	# Mensaje de error: "No hay memoria disponible"
-    	li $v0, 4                 	# Syscall para imprimir el error
-    	syscall
-    	jr $ra                    	# Retornar con error
-    	
-    	
